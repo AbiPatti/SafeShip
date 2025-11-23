@@ -1,4 +1,4 @@
-# 🐳 Whale Guardian - AI-Powered Marine Safety Platform
+# 🐳 SafeShip - AI-Powered Marine Safety Platform
 
 Real-time ship tracking + whale risk detection + Gemini AI insights to prevent ship-whale collisions.
 

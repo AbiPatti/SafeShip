@@ -409,7 +409,7 @@ const ShipMap = () => {
     <div className="dashboard-shell">
       <section className="dashboard-hero">
         <div>
-          <p className="eyebrow">Whale Guardian Operations Center</p>
+          <p className="eyebrow">SafeShip Operations Center</p>
           <h1>Live Vessel Intelligence + AI Cetacean Safety</h1>
           <p className="hero-copy">
             Blend AIS telemetry, whale habitat modeling, and Gemini multimodal insights to brief bridge teams before they enter
