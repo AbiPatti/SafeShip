@@ -10,7 +10,7 @@ __pycache__/
 .Python
 env/
 venv/
-*.pkl
+# *.pkl - Keeping whale_risk_model.pkl in repo (0.6MB)
 *.joblib
 
 # Node
