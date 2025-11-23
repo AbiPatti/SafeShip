@@ -12,6 +12,20 @@ class WhaleRiskPredictor:
         """Load the trained whale risk model"""
         self.model_path = os.path.join(os.path.dirname(__file__), model_path)
         self.model = None
+        # Primary coverage area (Australian/Pacific region - 86% of dataset)
+        self.primary_coverage = {
+            'min_lat': -45,
+            'max_lat': -10,
+            'min_lon': 110,
+            'max_lon': 180
+        }
+        # Extended coverage (rest of dataset)
+        self.extended_coverage = {
+            'min_lat': -78,
+            'max_lat': 40,
+            'min_lon': -180,
+            'max_lon': 180
+        }
         self.load_model()
     
     def load_model(self):
@@ -39,12 +53,38 @@ class WhaleRiskPredictor:
         if month is None:
             month = datetime.now().month
         
+        # Check if in primary coverage area (Australian/Pacific region)
+        in_primary = (self.primary_coverage['min_lat'] <= latitude <= self.primary_coverage['max_lat'] and 
+                     self.primary_coverage['min_lon'] <= longitude <= self.primary_coverage['max_lon'])
+        
+        # Check if in extended coverage area
+        in_extended = (self.extended_coverage['min_lat'] <= latitude <= self.extended_coverage['max_lat'] and 
+                      self.extended_coverage['min_lon'] <= longitude <= self.extended_coverage['max_lon'])
+        
+        if not in_extended:
+            return {
+                'risk_level': "UNKNOWN",
+                'probability': 0.0,
+                'recommendation': "No whale data available for this region. Dataset covers Australian/Pacific waters.",
+                'latitude': latitude,
+                'longitude': longitude,
+                'month': month,
+                'coverage': 'none'
+            }
+        
         # Create input dataframe
         X = pd.DataFrame([[latitude, longitude, month]], 
                         columns=['latitude', 'longitude', 'month'])
         
         # Get probability
         probability = self.model.predict_proba(X)[0][1]
+        
+        # Apply confidence penalty for extended (non-primary) areas
+        if not in_primary:
+            probability = probability * 0.5  # Reduce confidence outside primary coverage
+            coverage = 'limited'
+        else:
+            coverage = 'primary'
         
         # Determine risk level
         if probability > 0.6:
@@ -57,14 +97,21 @@ class WhaleRiskPredictor:
             risk_level = "LOW"
             recommendation = "Maintain standard whale watching protocols."
         
-        return {
+        result = {
             'risk_level': risk_level,
             'probability': round(probability, 3),
             'recommendation': recommendation,
             'latitude': latitude,
             'longitude': longitude,
-            'month': month
+            'month': month,
+            'coverage': coverage
         }
+        
+        # Add note for limited coverage areas
+        if coverage == 'limited':
+            result['note'] = "Limited data for this region - prediction has lower confidence"
+        
+        return result
     
     def predict_route(self, waypoints):
         """

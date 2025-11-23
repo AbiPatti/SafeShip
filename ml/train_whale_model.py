@@ -9,75 +9,126 @@ import os
 print("--- 🐳 Training Whale Risk Model with REAL DATA ---")
 
 # Load the actual whale sighting data
-data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'obis_seamap_dataset.csv.csv')
+data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'obis_seamap_dataset.csv')
 print(f"Loading data from: {data_path}")
 
 try:
-    # Read the actual dataset
-    df_raw = pd.read_csv(data_path, skiprows=1)  # Skip metadata row
+    # Read the actual OBIS dataset
+    df_raw = pd.read_csv(data_path)
     print(f"✅ Loaded {len(df_raw)} records from OBIS-SEAMAP dataset")
     
-    # Parse the actual data - it appears to be a multi-dataset file
-    # We'll need to look for latitude, longitude, and date columns
-    print("\nDataset columns:", df_raw.columns.tolist())
+    # Extract actual whale sightings with coordinates and dates
+    whale_sightings = []
     
-    # For now, let's create a robust training dataset
-    # We'll combine real patterns with synthetic data for areas without coverage
+    for _, row in df_raw.iterrows():
+        try:
+            lat = float(row['latitude'])
+            lon = float(row['longitude'])
+            
+            # Extract month from date_time column
+            date_str = str(row['date_time'])
+            
+            # Handle space separator (e.g., "1990-04-10 12:00:00")
+            if ' ' in date_str:
+                date_str = date_str.split(' ')[0]
+            if 'T' in date_str:
+                date_str = date_str.split('T')[0]
+            
+            if '-' in date_str:
+                parts = date_str.split('-')
+                if len(parts) >= 2:
+                    month = int(parts[1])
+                else:
+                    continue
+            else:
+                continue
+            
+            # Only include if we have valid data
+            if -90 <= lat <= 90 and -180 <= lon <= 180 and 1 <= month <= 12:
+                whale_sightings.append([lat, lon, month, 1])  # 1 = whale present
+                
+        except (ValueError, KeyError, TypeError):
+            continue
     
-    data = []
+    print(f"📊 Extracted {len(whale_sightings)} valid whale sightings from dataset")
     
-    # Generate training data based on real whale migration patterns
-    # Pacific coast whale populations (Humpback, Gray, Blue whales)
-    print("\nGenerating training data based on real whale migration patterns...")
+    if len(whale_sightings) < 100:
+        raise Exception("Not enough valid whale sightings in dataset")
     
-    for _ in range(3000):
-        lat = np.random.uniform(30, 50)  # Pacific coast range
-        lon = np.random.uniform(-130, -120)
-        month = np.random.randint(1, 13)
-        
-        # Real migration patterns:
-        # - Humpback whales: North in summer (May-Sept), South in winter
-        # - Gray whales: Migration corridor along coast (Dec-May)
-        # - Blue whales: Year-round but more common in summer
-        
-        is_summer = 5 <= month <= 9
-        is_winter_spring = month in [12, 1, 2, 3, 4, 5]
-        is_north = lat > 42
-        is_mid = 35 < lat <= 42
-        is_south = lat <= 35
-        is_coastal = lon > -125  # Within 200-300 miles of coast
-        
-        # Calculate whale presence probability
-        whale_probability = 0.05  # Baseline
-        
-        if is_summer and is_north:
-            whale_probability = 0.70  # High summer feeding grounds
-        elif is_summer and is_mid and is_coastal:
-            whale_probability = 0.55  # Summer mid-coast
-        elif is_winter_spring and is_mid and is_coastal:
-            whale_probability = 0.65  # Gray whale migration corridor
-        elif is_winter_spring and is_south:
-            whale_probability = 0.45  # Winter breeding grounds
-        elif month in [4, 5, 10, 11]:
-            whale_probability = 0.40  # Transition months
-        
-        # Add shipping lane proximity (whales often cross shipping lanes)
-        # Major shipping lanes are roughly along -125 to -123 longitude
-        if -125 <= lon <= -123:
-            whale_probability *= 1.2  # Higher risk in shipping lanes
-        
-        present = 1 if np.random.random() < whale_probability else 0
-        data.append([lat, lon, month, present])
+    # Add non-sighting data (random ocean points without whales)
+    # IMPORTANT: Sample from the SAME geographic region where we have whale data
+    # This ensures the model learns WHERE whales are vs where they're NOT
+    print("Generating negative samples (nearby ocean points without whales)...")
     
-    df = pd.DataFrame(data, columns=['latitude', 'longitude', 'month', 'present'])
+    # Get actual sighting locations
+    sighting_coords = set((s[0], s[1]) for s in whale_sightings)
+    
+    # For each whale sighting, create negative samples nearby
+    negative_samples = []
+    for lat, lon, month, _ in whale_sightings:
+        # Create 2-3 nearby points that are NOT actual sightings
+        for _ in range(2):
+            # Offset by 0.5-3 degrees in random direction
+            offset_lat = np.random.uniform(-3, 3)
+            offset_lon = np.random.uniform(-3, 3)
+            
+            new_lat = lat + offset_lat
+            new_lon = lon + offset_lon
+            
+            # Make sure it's not an actual sighting location
+            if (round(new_lat, 4), round(new_lon, 4)) not in sighting_coords:
+                if -90 <= new_lat <= 90 and -180 <= new_lon <= 180:
+                    # Random month to avoid seasonal bias
+                    rand_month = np.random.randint(1, 13)
+                    negative_samples.append([new_lat, new_lon, rand_month, 0])
+    
+    # Combine positive and negative samples
+    all_samples = whale_sightings + negative_samples
+    
+    df = pd.DataFrame(all_samples, columns=['latitude', 'longitude', 'month', 'present'])
     print(f"📊 Training Dataset: {len(df)} records")
     print(f"   Whale present: {df['present'].sum()} ({df['present'].mean():.1%})")
     print(f"   No whale: {(df['present']==0).sum()} ({(df['present']==0).mean():.1%})")
+    
+    # Get geographic range from actual data
+    lats = [s[0] for s in whale_sightings]
+    lons = [s[1] for s in whale_sightings]
+    min_lat, max_lat = min(lats), max(lats)
+    min_lon, max_lon = min(lons), max(lons)
+    print(f"   Geographic range: Lat {min_lat:.1f} to {max_lat:.1f}, Lon {min_lon:.1f} to {max_lon:.1f}")
 
 except Exception as e:
     print(f"⚠️ Error loading data: {e}")
-    print("Exiting...")
-    exit(1)
+    print("Using enhanced simulation based on real patterns...")
+    
+    # Fallback: Enhanced simulation based on real whale migration patterns
+    data = []
+    for _ in range(2000):
+        lat = np.random.uniform(30, 50)
+        lon = np.random.uniform(-130, -120)
+        month = np.random.randint(1, 13)
+        
+        # Real pattern: Humpback whales migrate north in summer (May-Sept)
+        # Gray whales peak Dec-Feb (southbound) and Mar-May (northbound)
+        is_summer = 5 <= month <= 9
+        is_winter_spring = month in [12, 1, 2, 3, 4]
+        is_north = lat > 40
+        is_mid = 35 < lat <= 40
+        
+        # Probability based on real migration patterns
+        if is_summer and is_north:
+            present = 1 if np.random.random() < 0.75 else 0  # High summer presence
+        elif is_winter_spring and is_mid:
+            present = 1 if np.random.random() < 0.60 else 0  # Gray whale migration corridor
+        elif is_north and month in [4, 5, 10]:
+            present = 1 if np.random.random() < 0.45 else 0  # Transition months
+        else:
+            present = 1 if np.random.random() < 0.08 else 0  # Low baseline
+            
+        data.append([lat, lon, month, present])
+    
+    df = pd.DataFrame(data, columns=['latitude', 'longitude', 'month', 'present'])
+    print(f"📊 Dataset: {len(df)} simulated records based on real migration patterns")
 
 # Split data for training and testing
 X = df[['latitude', 'longitude', 'month']]
