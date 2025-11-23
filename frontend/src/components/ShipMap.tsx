@@ -23,6 +23,13 @@ interface Ship {
   course?: number | null;
   nav_status?: string | null;
   source?: string;
+  whaleRisk?: WhaleRisk;
+}
+
+interface WhaleRisk {
+  risk_level: "HIGH" | "MEDIUM" | "LOW";
+  probability: number;
+  recommendation: string;
 }
 
 interface SearchResult {
@@ -180,6 +187,19 @@ const ShipMap = () => {
     }
   };
 
+  const getWhaleRisk = async (lat: number, lon: number): Promise<WhaleRisk | undefined> => {
+    try {
+      const response = await axios.post(buildUrl('/api/whale-risk'), {
+        latitude: lat,
+        longitude: lon
+      });
+      return response.data;
+    } catch (e) {
+      console.error("Failed to get whale risk:", e);
+      return undefined;
+    }
+  };
+
   const locateShip = async (mmsi: number) => {
     setLoading(true);
     try {
@@ -187,6 +207,9 @@ const ShipMap = () => {
       const response = await axios.get(url);
       const data = response.data;
       if (data && data.lat && data.lng) {
+        // Get whale risk for this location
+        const whaleRisk = await getWhaleRisk(data.lat, data.lng);
+        
         const ship: Ship = {
           name: data.vessel_name,
           id: String(data.mmsi),
@@ -199,7 +222,8 @@ const ShipMap = () => {
           speed: data.speed,
           course: data.course,
           destination: data.destination,
-          country: data.flag
+          country: data.flag,
+          whaleRisk: whaleRisk
         };
         setShips([ship]);
         setCenter({ lat: ship.lat, lon: ship.lon });
@@ -303,15 +327,40 @@ const ShipMap = () => {
         {track.length > 0 && <Polyline key={`track-${track.length}`} positions={track} pathOptions={{ color: 'red', weight: 4, opacity: 0.7 }} />}
         {headingLine.length > 0 && <Polyline key="heading" positions={headingLine} pathOptions={{ color: 'orange', weight: 3, dashArray: '10, 10' }} />}
         {destinationPath.length > 0 && <Polyline key="dest" positions={destinationPath} pathOptions={{ color: 'purple', weight: 2, dashArray: '5, 10' }} />}
-        {ships.map((ship) => (
+        {ships.map((ship) => {
+          // Color based on whale risk
+          let markerColor = 'blue';
+          if (ship.whaleRisk) {
+            if (ship.whaleRisk.risk_level === 'HIGH') markerColor = 'red';
+            else if (ship.whaleRisk.risk_level === 'MEDIUM') markerColor = 'orange';
+            else markerColor = 'green';
+          }
+          
+          return (
           <CircleMarker 
               key={ship.id} 
               center={[ship.lat, ship.lon]}
-              radius={5}
-              pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.7 }}
+              radius={8}
+              pathOptions={{ color: markerColor, fillColor: markerColor, fillOpacity: 0.8 }}
           >
             <Popup>
               <div>
+                {ship.whaleRisk && (
+                  <div style={{ 
+                    padding: '10px', 
+                    marginBottom: '10px', 
+                    background: ship.whaleRisk.risk_level === 'HIGH' ? '#ffebee' : 
+                               ship.whaleRisk.risk_level === 'MEDIUM' ? '#fff3e0' : '#e8f5e9',
+                    border: `2px solid ${ship.whaleRisk.risk_level === 'HIGH' ? '#f44336' : 
+                                        ship.whaleRisk.risk_level === 'MEDIUM' ? '#ff9800' : '#4caf50'}`,
+                    borderRadius: '5px'
+                  }}>
+                    <strong style={{ fontSize: '1.1em' }}>🐳 Whale Risk: {ship.whaleRisk.risk_level}</strong>
+                    <p style={{ margin: '5px 0' }}>Probability: {(ship.whaleRisk.probability * 100).toFixed(1)}%</p>
+                    <p style={{ margin: '5px 0', fontSize: '0.9em', fontStyle: 'italic' }}>{ship.whaleRisk.recommendation}</p>
+                  </div>
+                )}
+                
                 <h3>{ship.name}</h3>
                 <p><strong>Last position:</strong> {ship.timestamp ? new Date(ship.timestamp).toLocaleString() : 'Unknown'}</p>
                 <p><strong>Type:</strong> {ship.type || '—'}</p>
@@ -337,7 +386,8 @@ const ShipMap = () => {
               </div>
             </Popup>
           </CircleMarker>
-        ))}
+        );
+        })}
       </MapContainer>
       
       <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, background: 'white', padding: 15, borderRadius: 5, display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '300px', maxHeight: '90vh', overflowY: 'auto' }}>

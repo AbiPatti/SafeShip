@@ -4,6 +4,7 @@ import path from "path";
 import { api } from "../legacy/api";
 import { areaApi } from "../legacy/area";
 import { mstClient } from "../services/mstClient";
+import { whaleRiskService } from "../services/whaleRiskService";
 import ADSBexchange from "./sources/adsb/adsbe";
 class Server {
   app: any;
@@ -15,6 +16,10 @@ class Server {
   init(port: number) {
     this.app = express();
     this.app.set("port", port);
+    
+    // Parse JSON bodies
+    this.app.use(express.json());
+    
     this.app.use(
       cors({
         origin: "*",
@@ -105,6 +110,36 @@ class Server {
           days: days || 1,
         });
         res.json(results);
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    // Whale Risk API endpoints
+    this.app.post("/api/whale-risk", async (req: any, res: any) => {
+      try {
+        const { latitude, longitude, month } = req.body;
+        if (latitude === undefined || longitude === undefined) {
+          return res.status(400).json({ error: "latitude and longitude are required" });
+        }
+        const risk = await whaleRiskService.getWhaleRisk(latitude, longitude, month);
+        res.json(risk);
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    this.app.get("/api/vessels/status/:mmsi/whale-risk", async (req: any, res: any) => {
+      try {
+        const vessel = await mstClient.getVesselStatus({ mmsi: req.params.mmsi });
+        
+        // Get whale risk for vessel's current position
+        const whaleRisk = await whaleRiskService.getWhaleRisk(vessel.lat, vessel.lng);
+        
+        res.json({
+          vessel: vessel,
+          whale_risk: whaleRisk
+        });
       } catch (error) {
         res.status(500).json({ error: (error as Error).message });
       }
