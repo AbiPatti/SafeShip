@@ -25,7 +25,7 @@ interface RouteRiskSummary {
 class WhaleRiskService {
   private baseUrl: string;
 
-  constructor(baseUrl: string = "http://localhost:5002") {
+  constructor(baseUrl: string = "http://127.0.0.1:5002") {
     this.baseUrl = baseUrl;
   }
 

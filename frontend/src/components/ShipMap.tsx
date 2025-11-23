@@ -174,6 +174,18 @@ const ShipMap = () => {
         const points = response.data.map((p: any) => [p.lat, p.lng] as [number, number]);
         console.log("Parsed track points:", points);
         setTrack(points);
+        
+        // Calculate heading line from the last point
+        if (points.length > 0) {
+          const lastPoint = points[0]; // Most recent point is usually first
+          // If we have a course, project it
+          const ship = ships.find(s => s.mmsi === mmsi);
+          if (ship && ship.course) {
+             const endPoint = calculateDestination(ship.lat, ship.lon, 50, ship.course);
+             setHeadingLine([[ship.lat, ship.lon], endPoint]);
+          }
+        }
+
       } else {
         console.warn("No track data found or invalid format");
         alert(`No track history found for this vessel in the last ${days} day(s). It may be out of terrestrial range.`);
@@ -325,8 +337,12 @@ const ShipMap = () => {
         {center && <MapRecenter lat={center.lat} lon={center.lon} zoom={10} />}
         {track.length > 0 && <TrackFitter track={track} />}
         {track.length > 0 && <Polyline key={`track-${track.length}`} positions={track} pathOptions={{ color: 'red', weight: 4, opacity: 0.7 }} />}
-        {headingLine.length > 0 && <Polyline key="heading" positions={headingLine} pathOptions={{ color: 'orange', weight: 3, dashArray: '10, 10' }} />}
-        {destinationPath.length > 0 && <Polyline key="dest" positions={destinationPath} pathOptions={{ color: 'purple', weight: 2, dashArray: '5, 10' }} />}
+        {headingLine.length > 0 && <Polyline key="heading" positions={headingLine} pathOptions={{ color: 'orange', weight: 3, dashArray: '10, 10' }}>
+          <Popup>Current Heading</Popup>
+        </Polyline>}
+        {destinationPath.length > 0 && <Polyline key="dest" positions={destinationPath} pathOptions={{ color: 'purple', weight: 2, dashArray: '5, 10' }}>
+           <Popup>Projected Route to Destination</Popup>
+        </Polyline>}
         {ships.map((ship) => {
           // Color based on whale risk
           let markerColor = 'blue';

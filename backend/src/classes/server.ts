@@ -96,6 +96,7 @@ class Server {
       try {
         const result = await mstClient.getVesselStatus({
           mmsi: req.params.mmsi,
+          response: "extended",
         });
         res.json(result);
       } catch (error) {
@@ -105,9 +106,22 @@ class Server {
 
     this.app.get("/api/vessels/track/:mmsi", async (req: any, res: any) => {
       try {
-        const days = req.query.days ? Number(req.query.days) : undefined;
+        const days = req.query.days ? Number(req.query.days) : 1;
+        
+        // Optimize timegroup to keep response size small and fit within trial limits (max 100 records)
+        // API allows timegroup 1-60 minutes.
+        // We aim for ~100 points to balance detail and size.
+        const totalMinutes = days * 24 * 60;
+        const targetPoints = 100;
+        let timegroup = Math.ceil(totalMinutes / targetPoints);
+        
+        // Clamp to allowed range [1, 60]
+        if (timegroup > 60) timegroup = 60;
+        if (timegroup < 1) timegroup = 1;
+
         const results = await mstClient.getVesselTrack(req.params.mmsi, {
-          days: days || 1,
+          days: days,
+          timegroup: timegroup
         });
         res.json(results);
       } catch (error) {
@@ -131,7 +145,10 @@ class Server {
 
     this.app.get("/api/vessels/status/:mmsi/whale-risk", async (req: any, res: any) => {
       try {
-        const vessel = await mstClient.getVesselStatus({ mmsi: req.params.mmsi });
+        const vessel = await mstClient.getVesselStatus({ 
+          mmsi: req.params.mmsi,
+          response: "extended" 
+        });
         
         // Get whale risk for vessel's current position
         const whaleRisk = await whaleRiskService.getWhaleRisk(vessel.lat, vessel.lng);
