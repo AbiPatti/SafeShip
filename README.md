@@ -1,129 +1,266 @@
-# 🐳 Whale Risk Detection System
+# 🐳 Whale Guardian - AI-Powered Marine Safety Platform
 
-This project combines ship tracking data with machine learning to predict whale presence along shipping routes, helping to prevent ship-whale collisions.
+Real-time ship tracking + whale risk detection + Gemini AI insights to prevent ship-whale collisions.
 
-## Architecture
+## 🚀 Quick Setup (Windows)
 
-- **Frontend**: React + Leaflet map (Port 5173)
-- **Backend**: Node.js/TypeScript API for ship tracking (Port 5001)
-- **ML Service**: Python Flask API for whale risk predictions (Port 5002)
+### Prerequisites
+- Node.js 18+ 
+- Python 3.8+
+- MyShipTracking API key ([Get one here](https://www.myshiptracking.com))
+- Google Gemini API key ([Get one here](https://aistudio.google.com/apikey))
 
-## Quick Start
+### Step 1: Install Dependencies
 
-### 1. Setup Backend (Ship Tracking)
+Run the automated setup script to install all dependencies:
 
-```bash
-cd backend
-npm install
-# Add your MyShipTracking API key to .env
-echo "MST_API_KEY=your_key_here" >> .env
-npm start
+```powershell
+.\setup.bat
 ```
 
-### 2. Setup ML Service (Whale Detection)
+This will:
+- Install Node.js packages for backend & frontend
+- Install Python dependencies for ML service
+- Train the whale risk detection model
 
-```bash
-cd ml
+### Step 2: Configure API Keys
 
-# Install Python dependencies
-pip install -r requirements.txt
+1. Navigate to `backend` folder
+2. Copy `.env.template` to `.env`:
+   ```powershell
+   cd backend
+   copy .env.template .env
+   ```
+3. Edit `.env` and add your API keys:
+   ```env
+   MST_API_KEY=your_myshiptracking_key_here
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ```
 
-# Train the whale risk model
-python train_whale_model.py
+### Step 3: Start All Services
 
-# Start the whale risk API
-python api.py
+Run the startup script (uses fixed Python path for ML service):
+
+```powershell
+.\start_fixed.ps1
 ```
 
-### 3. Setup Frontend
+This will launch:
+- 🐍 **ML Service** on `http://localhost:5002` (Python Flask)
+- 🚢 **Backend API** on `http://localhost:5001` (Node.js/Express)
+- 🌐 **Frontend** on `http://localhost:5173` (React + Vite)
 
-```bash
-cd frontend
-npm install
-npm run dev
+### Step 4: Open the App
+
+Navigate to **http://localhost:5173** in your browser.
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│  Frontend (React + Leaflet + Gemini UI)   │  Port 5173
+│  - Interactive ship map                    │
+│  - Real-time vessel tracking               │
+│  - AI safety briefings                     │
+└──────────────────┬──────────────────────────┘
+                   │
+         ┌─────────┴─────────┐
+         ▼                   ▼
+┌──────────────────┐  ┌──────────────────┐
+│  Backend API     │  │  ML Service      │
+│  (Node/TS)       │  │  (Python/Flask)  │
+│  Port 5001       │  │  Port 5002       │
+│                  │  │                  │
+│ • Ship tracking  │  │ • Whale risk     │
+│ • Gemini AI      │  │   prediction     │
+│ • Route calc     │  │ • GBM classifier │
+└──────────────────┘  └──────────────────┘
+         │                   │
+         ▼                   ▼
+┌──────────────────┐  ┌──────────────────┐
+│ MyShipTracking   │  │ OBIS Whale Data  │
+│ AIS API          │  │ (trained model)  │
+└──────────────────┘  └──────────────────┘
 ```
 
-### 4. Open in Chrome
+---
 
-Navigate to `http://localhost:5173`
+## 🎯 Key Features
 
-## API Endpoints
+### 1. Real-Time Ship Tracking
+- Search vessels by name (e.g., "EVER GIVEN")
+- View ships near your location or in bounding box
+- Query ships in specific ports
+- Live AIS position updates
 
-### Ship Tracking (Port 5001)
+### 2. Whale Risk Detection (ML)
+- Predicts whale presence risk: **HIGH / MEDIUM / LOW**
+- Trained on OBIS-SEAMAP whale sighting dataset
+- Features: latitude, longitude, month (seasonal patterns)
+- ~85-90% accuracy
 
-- `GET /api/vessels/search/:name` - Search for vessels by name
-- `GET /api/vessels/status/:mmsi` - Get vessel current position
-- `GET /api/vessels/track/:mmsi` - Get vessel track history
-- `GET /api/vessels/status/:mmsi/whale-risk` - Get vessel position + whale risk
+### 3. Gemini AI Safety Briefings (Multimodal)
+- **Visual Analysis**: AI sees the map screenshot (html2canvas)
+- **Context-Aware**: Integrates vessel data, track history, whale risk
+- **Natural Language**: Bridge crew briefings with actionable recommendations
+- **Markdown Rendering**: Beautiful formatted output
 
-### Whale Risk (Port 5002)
+---
 
-- `POST /api/whale-risk` - Get whale risk for coordinates
-- `POST /api/whale-risk/route` - Get whale risk along a route
-- `GET /api/whale-risk/ship?lat=X&lon=Y` - Get whale risk for ship position
+## 📡 API Endpoints
 
-## Data Sources
+### Backend (Port 5001)
 
-- **Ship Data**: MyShipTracking.com API (real-time AIS data)
-- **Whale Data**: OBIS-SEAMAP dataset (`data/obis_seamap_dataset.csv.csv`)
+**Ship Tracking:**
+- `GET /api/vessels/search/:name` - Search vessels
+- `GET /api/vessels/status/:mmsi` - Current position (extended AIS data)
+- `GET /api/vessels/track/:mmsi?days=1` - Historical track
+- `GET /api/vessels/status/:mmsi/whale-risk` - Position + risk
 
-## Machine Learning Model
+**AI Insights:**
+- `POST /api/gemini/insight` - Generate Gemini safety briefing
+  ```json
+  {
+    "ship": { "lat": 35.2, "lon": 139.5, "mmsi": "311918000", ... },
+    "track": [...],
+    "question": "What should the bridge team know?",
+    "mapSnapshot": { "dataUrl": "data:image/png;base64,...", "mimeType": "image/png" }
+  }
+  ```
 
-The whale detection model uses:
-- **Algorithm**: Gradient Boosting Classifier
-- **Features**: Latitude, Longitude, Month
-- **Training Data**: Real whale migration patterns + OBIS sighting records
-- **Accuracy**: ~85-90% on test data
+**Whale Risk:**
+- `POST /api/whale-risk` - Get risk for coordinates
 
-### Risk Levels
-- **HIGH** (>60%): Reduce speed, increase lookout
-- **MEDIUM** (30-60%): Exercise caution
-- **LOW** (<30%): Standard protocols
+### ML Service (Port 5002)
 
-## Development
+- `POST /api/whale-risk` - Risk prediction
+  ```json
+  { "latitude": 40.7, "longitude": -74.0, "month": 11 }
+  ```
 
-### Training a New Model
+---
 
-```bash
-cd ml
-python train_whale_model.py
-```
+## 🧠 Machine Learning Model
 
-### Testing the Model
+**Algorithm:** Gradient Boosting Classifier  
+**Features:** Latitude, Longitude, Month  
+**Training Data:** OBIS-SEAMAP whale sightings + synthetic migration patterns  
 
-```bash
-cd ml
-python whale_predictor.py
-```
+**Risk Thresholds:**
+- 🔴 **HIGH** (>60%): Reduce speed to <10 knots, post whale watch
+- 🟡 **MEDIUM** (30-60%): Exercise caution, brief crew
+- 🟢 **LOW** (<30%): Standard protocols
 
-## Environment Variables
+**Model Files:**
+- `ml/whale_risk_model.pkl` - Trained classifier
+- `ml/train_whale_model.py` - Training script
+- `ml/whale_predictor.py` - Standalone predictor
 
-### Backend (.env)
-```
+---
+
+## 🔐 Environment Variables
+
+### Backend (`backend/.env`)
+```env
 PORT=5001
-MST_API_KEY=your_api_key_here
+MST_API_KEY=your_myshiptracking_api_key
 MST_CACHE_TTL_MS=30000
+MST_DEFAULT_MINUTES_BACK=60
+GEMINI_API_KEY=your_google_gemini_api_key
+GEMINI_MODEL=gemini-2.0-flash-lite
 ```
 
 ### ML Service
-```
-PORT=5002
-```
+No configuration needed (port 5002 hardcoded).
 
-## Project Structure
+---
+
+## 📂 Project Structure
 
 ```
 /
-├── backend/          # Node.js ship tracking API
-├── frontend/         # React map interface
-├── ml/              # Python whale risk ML service
-│   ├── train_whale_model.py
-│   ├── whale_predictor.py
-│   ├── api.py
-│   └── whale_risk_model.pkl
-└── data/            # Whale sighting datasets (gitignored)
+├── backend/                 # Node.js/TypeScript API
+│   ├── src/
+│   │   ├── classes/server.ts     # Express routes
+│   │   ├── services/
+│   │   │   ├── mstClient.ts      # MyShipTracking client
+│   │   │   ├── whaleRiskService.ts
+│   │   │   └── geminiService.ts  # Gemini AI integration
+│   │   └── index.ts
+│   ├── .env.template
+│   └── package.json
+│
+├── frontend/                # React + Vite
+│   ├── src/
+│   │   ├── components/ShipMap.tsx  # Main map UI
+│   │   ├── App.css                 # Styling
+│   │   └── main.tsx
+│   └── package.json
+│
+├── ml/                      # Python Flask ML service
+│   ├── api.py                      # Flask server
+│   ├── train_whale_model.py        # Model training
+│   ├── whale_predictor.py          # Inference script
+│   ├── whale_risk_model.pkl        # Trained model
+│   └── requirements.txt
+│
+├── setup.bat                # Dependency installer
+├── start_fixed.ps1          # Startup script (all services)
+└── README.md
 ```
 
-## Contributing
+---
 
-This is a hackathon project focused on marine conservation and ship safety.
+## 🛠️ Development
+
+### Retrain ML Model
+```powershell
+cd ml
+python train_whale_model.py
+```
+
+### Manual Service Startup
+
+**Backend:**
+```powershell
+cd backend
+npm start
+```
+
+**ML Service:**
+```powershell
+cd ml
+python api.py
+```
+
+**Frontend:**
+```powershell
+cd frontend
+npm run dev
+```
+
+---
+
+## 🎨 Tech Stack
+
+- **Frontend:** React, TypeScript, Leaflet, Vite, html2canvas, react-icons, marked
+- **Backend:** Node.js, Express, TypeScript, Axios, @google/generative-ai
+- **ML:** Python, Flask, scikit-learn, pandas, numpy
+- **Data:** MyShipTracking API (AIS), OBIS-SEAMAP (whale sightings)
+
+---
+
+## 🏆 Hackathon Tracks
+
+This project targets:
+- ✅ **Best Use of Gemini API** - Multimodal safety briefings with map visual analysis
+- ✅ **Best UI/UX** - Professional maritime dashboard with real-time updates
+- ✅ **Most Creative Use of AI** - Combining ML whale detection + Gemini contextual insights
+
+---
+
+## 📝 License
+
+MIT License - Hackathon project for marine conservation.
