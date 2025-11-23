@@ -1,81 +1,173 @@
-const scraper = require("./lib/puppeteer");
+import { mstClient, ZoneQuery } from "../services/mstClient";
+import { mapZoneVesselToShip, ShipSummary } from "../utils/shipTransform";
 
-const fetchResultByArea = async (area, time, cb) => {
-  await scraper.fetch(
-    {
-      url: `https://www.marinetraffic.com/en/reports?asset_type=vessels&columns=time_of_latest_position:desc,flag,shipname,photo,recognized_next_port,reported_eta,reported_destination,current_port,imo,ship_type,show_on_live_map,area,lat_of_latest_position,lon_of_latest_position&area_in=${area}&time_of_latest_position_between=${time}`,
-      referer:
-        "https://www.marinetraffic.com/en/data/?asset_type=vessels&columns=time_of_latest_position:desc,flag,shipname,photo,recognized_next_port,reported_eta,reported_destination,current_port,imo,ship_type,show_on_live_map,area,lat_of_latest_position,lon_of_latest_position&area_in|in|West%20Mediterranean,East%20Mediterranean|area_in=WMED,EMED&time_of_latest_position_between|gte|time_of_latest_position_between=60,525600",
-      responseSelector: "/en/reports?",
-      extraHeaders: {
-        "vessel-image": "0053e92efe9e7772299d24de2d0985adea14",
-      },
-    },
-    cb,
-  );
+interface BoundingBox {
+  minLat: number;
+  maxLat: number;
+  minLon: number;
+  maxLon: number;
+}
+
+interface QueryOptions {
+  minutesBack?: number;
+}
+
+const DEFAULT_MINUTES_BACK = Number(process.env.MST_DEFAULT_MINUTES_BACK ?? 60);
+const MAX_LAT_SPAN = Number(process.env.MST_MAX_LAT_SPAN ?? 10);
+const MAX_LON_SPAN = Number(process.env.MST_MAX_LON_SPAN ?? 25);
+const MAX_RESULTS = Number(process.env.MST_MAX_RESULTS ?? 200);
+
+const AREA_PRESETS: Record<string, BoundingBox> = {
+  WMED: { minLat: 34, maxLat: 42, minLon: -6, maxLon: 15 },
+  EMED: { minLat: 30, maxLat: 42, minLon: 15, maxLon: 36 },
+  CMED: { minLat: 32, maxLat: 40, minLon: 10, maxLon: 24 },
+  BSEA: { minLat: 40, maxLat: 47, minLon: 27, maxLon: 42 },
+  CARIB: { minLat: 10, maxLat: 22, minLon: -88, maxLon: -60 },
 };
 
-const mapResult = (result) => {
-  return result.data.map((vessel) => ({
-    name: vessel.SHIPNAME,
-    id: vessel.SHIP_ID,
-    lat: Number(vessel.LAT),
-    lon: Number(vessel.LON),
-    timestamp: vessel.LAST_POS,
-    mmsi: vessel.MMSI,
-    imo: vessel.IMO,
-    callsign: vessel.CALLSIGN,
-    speed: Number(vessel.SPEED),
-    area: vessel.AREA_CODE,
-    type: vessel.TYPE_SUMMARY,
-    country: vessel.COUNTRY,
-    destination: vessel.DESTINATION,
-    port_current_id: vessel.PORT_ID,
-    port_current: vessel.CURRENT_PORT,
-    port_next_id: vessel.NEXT_PORT_ID,
-    port_next: vessel.NEXT_PORT_NAME,
-  }));
+const clampNumber = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
+const normalizeBox = (box: BoundingBox): BoundingBox => {
+  const minLat = Math.min(box.minLat, box.maxLat);
+  const maxLat = Math.max(box.minLat, box.maxLat);
+  const minLon = Math.min(box.minLon, box.maxLon);
+  const maxLon = Math.max(box.minLon, box.maxLon);
+
+  const latSpan = Math.abs(maxLat - minLat);
+  const lonSpan = Math.abs(maxLon - minLon);
+
+  if (latSpan > MAX_LAT_SPAN || lonSpan > MAX_LON_SPAN) {
+    throw new Error(
+      `Bounding box too large (lat span ${latSpan.toFixed(2)}, lon span ${lonSpan.toFixed(2)}).` +
+        ` Reduce the searched area to keep API usage under budget.`,
+    );
+  }
+
+  return {
+    minLat: clampNumber(minLat, -90, 90),
+    maxLat: clampNumber(maxLat, -90, 90),
+    minLon: clampNumber(minLon, -180, 180),
+    maxLon: clampNumber(maxLon, -180, 180),
+  };
 };
 
-const fetchVesselsInArea: Function = (regions = ["WMED", "EMED"], cb) => {
-  const timeframe = [60, 525600];
-  fetchResultByArea(regions.join(","), timeframe.join(","), (result) => {
-    if (!result?.data?.length) {
-      console.log("Scraper returned no data or failed.");
-      return cb([]);
+const parseBoundingBoxToken = (token: string): BoundingBox | null => {
+  const trimmed = token.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.toUpperCase() in AREA_PRESETS) {
+    return AREA_PRESETS[trimmed.toUpperCase()];
+  }
+
+  if (trimmed.toLowerCase().startsWith("bbox:")) {
+    const [, coords] = trimmed.split(":", 2);
+    const values = coords?.split("|").map((value) => Number(value));
+    if (values?.length === 4 && values.every((value) => !Number.isNaN(value))) {
+      return {
+        minLat: values[0],
+        minLon: values[1],
+        maxLat: values[2],
+        maxLon: values[3],
+      };
     }
-    return cb(mapResult(result));
-  });
+  }
+
+  return null;
 };
 
-const fetchResultNearMe = async (lat, lng, distance, time, cb) => {
-  await scraper.fetch(
-    {
-      url: `https://www.marinetraffic.com/en/reports?asset_type=vessels&columns=time_of_latest_position:desc,flag,shipname,photo,recognized_next_port,reported_eta,reported_destination,current_port,imo,ship_type,show_on_live_map,area,lat_of_latest_position,lon_of_latest_position&time_of_latest_position_between=${time}&near_me=${lat},${lng},${distance}`,
-      referer:
-        "https://www.marinetraffic.com/en/data/?asset_type=vessels&columns=time_of_latest_position:desc,flag,shipname,photo,recognized_next_port,reported_eta,reported_destination,current_port,imo,ship_type,show_on_live_map,area,lat_of_latest_position,lon_of_latest_position&area_in|in|West%20Mediterranean,East%20Mediterranean|area_in=WMED,EMED&time_of_latest_position_between|gte|time_of_latest_position_between=60,525600",
-      responseSelector: "/en/reports?",
-      extraHeaders: {
-        "vessel-image": "0053e92efe9e7772299d24de2d0985adea14",
-      },
-    },
-    cb,
-  );
+const tokenizeAreaExpression = (expression?: string): BoundingBox[] => {
+  if (!expression) {
+    return [AREA_PRESETS.WMED];
+  }
+  const tokens = expression.split(",").map((token) => token.trim()).filter(Boolean);
+  const boxes = tokens
+    .map(parseBoundingBoxToken)
+    .filter((box): box is BoundingBox => Boolean(box))
+    .map(normalizeBox);
+
+  return boxes.length ? boxes : [AREA_PRESETS.WMED];
 };
 
-const fetchVesselsNearMe: Function = (
-  lat = 51.7419,
-  lng = 3.89773,
-  distance = 2,
-  cb,
+const formatMinutesBack = (minutesBack?: number) => {
+  if (!minutesBack || Number.isNaN(minutesBack)) {
+    return DEFAULT_MINUTES_BACK;
+  }
+  // API requires minutesBack >= 60
+  return clampNumber(Math.round(minutesBack), 60, 720);
+};
+
+const mapZoneResults = (vessels: ShipSummary[]): ShipSummary[] => {
+  return vessels
+    .filter((ship) => !Number.isNaN(ship.lat) && !Number.isNaN(ship.lon))
+    .slice(0, MAX_RESULTS);
+};
+
+const fetchVesselsInArea = async (
+  expression = "",
+  options: QueryOptions = {},
+  cb: (result: ShipSummary[]) => void,
+): Promise<void> => {
+  const boxes = tokenizeAreaExpression(expression);
+  const minutesBack = formatMinutesBack(options.minutesBack);
+  const dedup = new Map<string, ShipSummary>();
+
+  for (const box of boxes) {
+    const query: ZoneQuery = {
+      minLat: box.minLat,
+      maxLat: box.maxLat,
+      minLon: box.minLon,
+      maxLon: box.maxLon,
+      minutesBack,
+      response: "simple",
+    };
+    const vessels = await mstClient.getVesselsInZone(query);
+    vessels.forEach((vessel) => {
+      const mapped = mapZoneVesselToShip(vessel);
+      if (!dedup.has(mapped.id)) {
+        dedup.set(mapped.id, mapped);
+      }
+    });
+    if (dedup.size >= MAX_RESULTS) {
+      break;
+    }
+  }
+
+  cb(mapZoneResults(Array.from(dedup.values())));
+};
+
+const nauticalMilesToLatDelta = (distanceNm: number) => distanceNm / 60;
+
+const nauticalMilesToLonDelta = (distanceNm: number, latitude: number) => {
+  const radians = (latitude * Math.PI) / 180;
+  const safeCos = Math.max(Math.cos(radians), 0.1);
+  return distanceNm / (60 * safeCos);
+};
+
+const fetchVesselsNearMe = async (
+  lat = 0,
+  lon = 0,
+  distance = 5,
+  options: QueryOptions = {},
+  cb: (result: ShipSummary[]) => void,
 ) => {
-  const timeframe = [60, 525600];
-  fetchResultNearMe(lat, lng, distance, timeframe.join(","), (result: any) => {
-    if (!result?.data.length) {
-      return cb(null);
-    }
-    return cb(mapResult(result));
-  });
+  const safeDistance = clampNumber(distance, 1, 50);
+  const minutesBack = formatMinutesBack(options.minutesBack);
+  const latDelta = nauticalMilesToLatDelta(safeDistance);
+  const lonDelta = nauticalMilesToLonDelta(safeDistance, lat);
+  const query: ZoneQuery = {
+    minLat: lat - latDelta,
+    maxLat: lat + latDelta,
+    minLon: lon - lonDelta,
+    maxLon: lon + lonDelta,
+    minutesBack,
+    response: "simple",
+  };
+  const vessels = await mstClient.getVesselsInZone(query);
+  const mapped = vessels.map(mapZoneVesselToShip);
+  cb(mapZoneResults(mapped));
 };
 
 export class areaApi {

@@ -1,14 +1,14 @@
 # Position API
 
-A Node.js/TypeScript API for retrieving real-time positions of vessels and aircraft from various sources, including MarineTraffic (AIS) and ADS-B Exchange.
+A Node.js/TypeScript API for retrieving real-time vessel and aircraft positions. AIS data is fetched from the official MyShipTracking API (credit based), while ADS-B data is proxied from ADSBexchange.
 
 ## Features
 
-- Fetch latest vessel positions by MMSI from MarineTraffic.
+- Fetch latest vessel positions by MMSI via MyShipTracking (official API).
 - Fetch latest aircraft positions by ICAO from ADS-B Exchange.
-- Legacy endpoints for compatibility.
-- Area and port-based vessel queries.
-- Puppeteer-based scraping with stealth plugin for anti-bot evasion.
+- Credit-aware area, proximity, and port queries with bounding-box limits.
+- Legacy endpoints preserved for compatibility.
+- Lightweight caching layer to avoid unnecessary credit spend.
 
 ## Getting Started
 
@@ -32,6 +32,17 @@ Copy the environment template and adjust as needed:
 ```bash
 cp .env.template .env
 ```
+
+Mandatory variables:
+
+- `MST_API_KEY` &mdash; your MyShipTracking API key (Bearer token).
+
+Optional credit-protection knobs:
+
+- `MST_DEFAULT_MINUTES_BACK` (default `60`)
+- `MST_MAX_LAT_SPAN` / `MST_MAX_LON_SPAN` (caps bounding boxes)
+- `MST_MAX_RESULTS` (server-side cap on returned vessels)
+- `MST_MAX_PORT_VESSELS` (how many vessels we enrich per port request)
 
 ### Build
 
@@ -155,32 +166,37 @@ curl http://localhost:5000/legacy/getVesselsInPort/Hamburg
   curl http://localhost:5000/legacy/getLastPosition/211879870
   ```
 
-- **Get vessels in area**
+- **Get vessels in area (MyShipTracking)**
   ```
-  GET /legacy/getVesselsInArea/:area
+  GET /legacy/getVesselsInArea/:areaExpression?minutesBack=45
   ```
-  - `:area` is a comma-separated list, e.g. `WMED,EMED`
-  **Example:**
-  ```
-  curl http://localhost:5000/legacy/getVesselsInArea/WMED,EMED
-  ```
-
-- **Get vessels near me**
-  ```
-  GET /legacy/getVesselsNearMe/:lat/:lng/:distance
-  ```
-  **Example:**
-  ```
-  curl http://localhost:5000/legacy/getVesselsNearMe/37.7749/-122.4194/10
+  - Use presets (e.g. `WMED`) or bounding boxes: `bbox:minLat|minLon|maxLat|maxLon`
+  - Bounding boxes wider than the configured span will be rejected to avoid runaway credit usage.
+  **Examples:**
+  ```bash
+  # Central Mediterranean, last 45 minutes
+  curl "http://localhost:5000/legacy/getVesselsInArea/bbox:36|10|41|18?minutesBack=45"
   ```
 
-- **Get vessels in port**
+- **Get vessels near me (bounding box wrapper)**
+  ```
+  GET /legacy/getVesselsNearMe/:lat/:lng/:distance?minutesBack=30
+  ```
+  - Distance is in nautical miles (1&ndash;50). The server converts it to a small bounding box.
+  **Example:**
+  ```bash
+  curl "http://localhost:5000/legacy/getVesselsNearMe/37.7749/-122.4194/8?minutesBack=30"
+  ```
+
+- **Get vessels in port (name, UN/LOCODE, or ID)**
   ```
   GET /legacy/getVesselsInPort/:shipPort
   ```
+  - Accepts port name (`Hamburg`), UN/LOCODE (`DEHAM`), or numeric `port_id`.
+  - The API resolves the port, calls `port/inport`, then enriches up to `MST_MAX_PORT_VESSELS` vessels via the bulk status endpoint so coordinates are available for the map.
   **Example:**
-  ```
-  curl http://localhost:5000/legacy/getVesselsInPort/Hamburg
+  ```bash
+  curl http://localhost:5000/legacy/getVesselsInPort/DEHAM
   ```
 
 ## Notes

@@ -100,5 +100,5 @@
     "skipLibCheck": true /* Skip type checking all .d.ts files. */,
     "lib": ["dom"]
   },
-  "exclude": ["test"]
+  "exclude": ["test", "test_mst_connection.ts"]
 }

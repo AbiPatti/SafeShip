@@ -1,14 +1,17 @@
 import Marinetraffic from "../classes/sources/ais/mt";
 import MyShipTracking from "../classes/sources/ais/mst";
+import { mstClient } from "../services/mstClient";
+import { mapZoneVesselToShip, ShipSummary } from "../utils/shipTransform";
 
 const moment = require("moment");
-const request = require("request");
 
 const debug = (...args) => {
   if (true) {
     console.log.apply(console, args);
   }
 };
+
+const MAX_PORT_VESSELS = Number(process.env.MST_MAX_PORT_VESSELS ?? 40);
 
 async function getLocationFromVF(mmsi, cb) {
   await getLocationFromMST(mmsi, cb);
@@ -74,67 +77,91 @@ function getLocation(mmsi, cb) {
 }
 
 function getVesselsInPort(shipPort, cb) {
-  const url = `https://www.marinetraffic.com/en/reports?asset_type=vessels&columns=flag,shipname,photo,recognized_next_port,reported_eta,reported_destination,current_port,imo,ship_type,show_on_live_map,time_of_latest_position,lat_of_latest_position,lon_of_latest_position,current_port_country,notes&current_port_in_name=${shipPort}`;
-  debug("getVesselsInPort", url);
+  resolvePortIdentifier(shipPort)
+    .then(async (portReference) => {
+      if (!portReference) {
+        cb([]);
+        return;
+      }
 
-  const headers = {
-    accept: "*/*",
-    "Accept-Language": "en-US,en;q=0.5",
-    "Accept-Encoding": "gzip, deflate, brotli",
-    "Vessel-Image": "0053e92efe9e7772299d24de2d0985adea14",
-    "X-Requested-With": "XMLHttpRequest",
-  };
-  const options = {
-    url,
-    headers,
-    json: true,
-    gzip: true,
-    deflate: true,
-    brotli: true,
-  };
-  request(options, function (error, response) {
-    if (error) {
-      debug("error in getVesselsInPort", error?.message ?? error);
+      const vesselsInPort = await mstClient.getVesselsInPort(portReference);
+      const withMmsi = vesselsInPort
+        .filter((vessel) => vessel.mmsi)
+        .slice(0, MAX_PORT_VESSELS);
+
+      if (!withMmsi.length) {
+        cb([]);
+        return;
+      }
+
+      const mmsiList = withMmsi.map((vessel) => String(vessel.mmsi));
+      const statuses = await mstClient.getBulkVesselStatus({ mmsi: mmsiList });
+      const statusMap = new Map<string, ShipSummary>();
+      statuses.forEach((status) => {
+        if (status.mmsi) {
+          statusMap.set(String(status.mmsi), mapZoneVesselToShip(status));
+        }
+      });
+
+      const merged = withMmsi
+        .map((vessel) => {
+          const key = vessel.mmsi ? String(vessel.mmsi) : null;
+          if (!key) {
+            return null;
+          }
+          const base = statusMap.get(key);
+          if (!base) {
+            return null;
+          }
+          return {
+            ...base,
+            type: vessel.vessel_type ?? base.type,
+            country: vessel.flag ?? base.country,
+            destination: base.destination,
+            port_current: portReference.name ?? base.port_current,
+          };
+        })
+        .filter((ship): ship is ShipSummary => Boolean(ship));
+
+      cb(merged);
+    })
+    .catch((error) => {
+      debug("getVesselsInPort failed", error?.message ?? error);
       cb([]);
-      return;
-    }
+    });
+}
 
-    const status = response?.statusCode;
-    const vessels = response?.body?.data;
+async function resolvePortIdentifier(
+  rawInput?: string,
+): Promise<{ portId?: number; unloco?: string; name?: string } | null> {
+  if (!rawInput) {
+    return null;
+  }
 
-    if (status === 200 && Array.isArray(vessels)) {
-      return cb(
-        vessels.map((vessel) => ({
-          name: vessel.SHIPNAME,
-          id: vessel.SHIP_ID,
-          lat: Number(vessel.LAT),
-          lon: Number(vessel.LON),
-          timestamp: vessel.LAST_POS,
-          mmsi: vessel.MMSI,
-          imo: vessel.IMO,
-          callsign: vessel.CALLSIGN,
-          speed: Number(vessel.SPEED),
-          area: vessel.AREA_CODE,
-          type: vessel.TYPE_SUMMARY,
-          country: vessel.COUNTRY,
-          destination: vessel.DESTINATION,
-          port_current_id: vessel.PORT_ID,
-          port_current: vessel.CURRENT_PORT,
-          port_next_id: vessel.NEXT_PORT_ID,
-          port_next: vessel.NEXT_PORT_NAME,
-        })),
-      );
-    }
+  const trimmed = rawInput.trim();
+  if (!trimmed) {
+    return null;
+  }
 
-    debug(
-      "getVesselsInPort returned no data",
-      "status:",
-      status,
-      "body keys:",
-      response?.body ? Object.keys(response.body) : "none",
-    );
-    cb([]);
-  });
+  if (/^\d+$/.test(trimmed)) {
+    return { portId: Number(trimmed), name: trimmed };
+  }
+
+  if (/^[A-Za-z]{5}$/.test(trimmed)) {
+    return { unloco: trimmed.toUpperCase(), name: trimmed.toUpperCase() };
+  }
+
+  const matches = await mstClient.searchPorts(trimmed);
+  if (!matches.length) {
+    return null;
+  }
+
+  const match = matches[0];
+  return {
+    portId: match.port_id,
+    unloco: match.unloco,
+    name: match.name,
+  };
 }
 
 export class api {

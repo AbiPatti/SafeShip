@@ -3,6 +3,7 @@ import cors from "cors";
 import path from "path";
 import { api } from "../legacy/api";
 import { areaApi } from "../legacy/area";
+import { mstClient } from "../services/mstClient";
 import ADSBexchange from "./sources/adsb/adsbe";
 class Server {
   app: any;
@@ -19,6 +20,10 @@ class Server {
         origin: "*",
       }),
     );
+    this.app.use((req, res, next) => {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+      next();
+    });
     this.app.get("/", (_request: any, response: any) => {
       response.sendFile(path.join(__dirname, "/../static/index.html"));
     });
@@ -26,6 +31,9 @@ class Server {
     this.loadRoutes();
     this.server = this.app.listen(this.app.get("port"), () => {
       console.log("Node this.appp is running on port", this.app.get("port"));
+    });
+    this.server.on("error", (err: any) => {
+      console.error("Server failed to start:", err);
     });
   }
 
@@ -69,6 +77,38 @@ class Server {
         });
       },
     );
+
+    this.app.get("/api/vessels/search/:name", async (req: any, res: any) => {
+      try {
+        const results = await mstClient.searchVessels(req.params.name);
+        res.json(results);
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    this.app.get("/api/vessels/status/:mmsi", async (req: any, res: any) => {
+      try {
+        const result = await mstClient.getVesselStatus({
+          mmsi: req.params.mmsi,
+        });
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    this.app.get("/api/vessels/track/:mmsi", async (req: any, res: any) => {
+      try {
+        const days = req.query.days ? Number(req.query.days) : undefined;
+        const results = await mstClient.getVesselTrack(req.params.mmsi, {
+          days: days || 1,
+        });
+        res.json(results);
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
   }
 
   loadLegacyRoutes() {
@@ -99,25 +139,67 @@ class Server {
     this.app.get(
       "/legacy/getVesselsInArea/:area",
       async (req: any, res: any) => {
-        await areaApi.fetchVesselsInArea(
-          req.params.area.split(","),
-          (result) => {
-            res.json(result);
-          },
-        );
+        try {
+          const areaExpression = decodeURIComponent(req.params.area ?? "");
+          const minutesBack = req.query.minutesBack
+            ? Number(req.query.minutesBack)
+            : undefined;
+
+          await areaApi.fetchVesselsInArea(
+            areaExpression,
+            { minutesBack },
+            (result) => {
+              res.json(result);
+            },
+          );
+        } catch (error) {
+          res.status(400).json({
+            error:
+              (error as Error)?.message ??
+              "Unable to parse area expression. Use bbox:minLat|minLon|maxLat|maxLon",
+            data: [],
+          });
+        }
       },
     );
     this.app.get(
       "/legacy/getVesselsNearMe/:lat/:lng/:distance",
       async (req: any, res: any) => {
-        await areaApi.fetchVesselsNearMe(
-          req.params.lat,
-          req.params.lng,
-          req.params.distance,
-          (result) => {
-            res.json(result);
-          },
-        );
+        const lat = Number(req.params.lat);
+        const lon = Number(req.params.lng);
+        const distance = Number(req.params.distance);
+
+        if ([lat, lon, distance].some((value) => Number.isNaN(value))) {
+          res.status(400).json({
+            error: "lat, lng and distance must be numeric",
+            data: [],
+          });
+          return;
+        }
+
+        const minutesBack = req.query.minutesBack
+          ? Number(req.query.minutesBack)
+          : undefined;
+
+        try {
+          await areaApi.fetchVesselsNearMe(
+            lat,
+            lon,
+            distance,
+            { minutesBack },
+            (result) => {
+              res.json(result);
+            },
+          );
+        } catch (error) {
+          console.error("Error in getVesselsNearMe:", error);
+          res.status(400).json({
+            error:
+              (error as Error)?.message ??
+              "Unable to fetch nearby vessels from MyShipTracking.",
+            data: [],
+          });
+        }
       },
     );
     this.app.get("/legacy/getVesselsInPort/:shipPort", (req: any, res: any) => {
