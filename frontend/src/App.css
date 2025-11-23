@@ -566,3 +566,43 @@ code {
     padding-right: 0;
   }
 }
+
+/* Markdown content styling */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid rgba(148, 163, 184, 0.3);
+}
+
+.markdown-content p {
+  margin: 0.75rem 0;
+  color: #cbd5e1;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.markdown-content ul {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+
+.markdown-content li {
+  margin: 0.5rem 0;
+  color: #94a3b8;
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: #64748b;
+}
+

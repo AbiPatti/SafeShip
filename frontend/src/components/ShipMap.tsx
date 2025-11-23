@@ -514,7 +514,7 @@ const ShipMap = () => {
             <div className="section-header">
               <h3>Mission Console</h3>
               <button className="ghost-btn" onClick={fetchShips} disabled={loading}>
-                {loading ? 'Loading…' : 'Refresh'}
+                {loading ? 'Searching…' : 'Search Vessels'}
               </button>
             </div>
             <div className="radio-grid">
