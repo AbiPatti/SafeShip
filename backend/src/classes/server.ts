@@ -5,6 +5,7 @@ import { api } from "../legacy/api";
 import { areaApi } from "../legacy/area";
 import { mstClient } from "../services/mstClient";
 import { whaleRiskService } from "../services/whaleRiskService";
+import { generateGeminiInsight } from "../services/geminiService";
 import ADSBexchange from "./sources/adsb/adsbe";
 class Server {
   app: any;
@@ -17,8 +18,8 @@ class Server {
     this.app = express();
     this.app.set("port", port);
     
-    // Parse JSON bodies
-    this.app.use(express.json());
+    // Parse JSON bodies with larger limit for image data
+    this.app.use(express.json({ limit: '10mb' }));
     
     this.app.use(
       cors({
@@ -159,6 +160,29 @@ class Server {
         });
       } catch (error) {
         res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    this.app.post("/api/gemini/insight", async (req: any, res: any) => {
+      try {
+        if (!process.env.GEMINI_API_KEY) {
+          return res.status(503).json({ error: "Gemini API key missing on server" });
+        }
+
+        const payload = req.body ?? {};
+        if (!payload.ship || !payload.ship.lat || !payload.ship.lon) {
+          return res.status(400).json({ error: "ship with lat/lon is required" });
+        }
+
+        const insight = await generateGeminiInsight(payload);
+        res.json(insight);
+      } catch (error) {
+        console.error("Gemini insight failed:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ 
+          error: errorMessage,
+          details: error instanceof Error ? error.stack : undefined
+        });
       }
     });
   }
