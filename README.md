@@ -68,8 +68,8 @@ The system utilizes a microservices architecture with a React frontend, Node.js 
 
 ## Tech Stack
 
-- **Frontend:** React, TypeScript, Leaflet, Vite, html2canvas, react-icons, marked
-- **Backend:** Node.js, Express, TypeScript, Axios, @google/generative-ai
+- **Frontend:** React, TypeScript, Leaflet, Vite, Marked
+- **Backend:** Node.js, Express, TypeScript
 - **ML:** Python, Flask, scikit-learn, pandas, numpy
 - **Data:** MyShipTracking API (AIS), OBIS-SEAMAP (whale sightings)
 
