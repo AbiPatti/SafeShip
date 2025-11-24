@@ -257,5 +257,4 @@ npm run dev
 ```
 
 ## License
-
-MIT License - Hackathon project for marine conservation.
+>This project is licensed under the MIT License. See [LICENSE](LICENSE) for more details.
