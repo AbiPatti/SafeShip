@@ -2,8 +2,8 @@ Write-Host "=== Starting Whale Risk Detection System (Fixed) ===" -ForegroundCol
 Write-Host ""
 
 Write-Host "Starting ML Service (Python API on port 5002)..." -ForegroundColor Yellow
-# Using the specific Python path that has the required dependencies installed
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd ml; & 'C:\Users\vishn\AppData\Local\Microsoft\WindowsApps\python.exe' api.py"
+# Using the system's Python path
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd ml; python api.py"
 Start-Sleep -Seconds 3
 
 Write-Host "Starting Backend (Node API on port 5001)..." -ForegroundColor Yellow
