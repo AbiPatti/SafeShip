@@ -29,6 +29,9 @@ SafeShip is a full-stack maritime safety platform designed to prevent collisions
 - **Natural Language**: Bridge crew briefings with actionable recommendations
 - **Markdown Rendering**: Beautiful formatted output
 
+## Demo
+
+[![Watch the Demo](https://img.youtube.com/vi/tfVUQBN6bpY/maxresdefault.jpg)](https://www.youtube.com/watch?v=tfVUQBN6bpY)
 
 ## Architecture
 
