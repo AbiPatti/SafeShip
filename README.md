@@ -1,6 +1,13 @@
 # 🐳 SafeShip - AI-Powered Marine Safety Platform
 
-Real-time ship tracking + whale risk detection + Gemini AI insights to prevent ship-whale collisions.
+>**Note**: This project was built in 24 hours for the Sheridan Datathon in collaboration with [@YeehawMcfly](https://github.com/YeehawMcfly) and [@Abhiroop-Tech](https://github.com/Abhiroop-Tech).
+
+Each year, an estimated 20,000 whales are killed globally by collisions with vessels, making these collisions the leading cause of death for large whale species. This ongoing threat endangers the survival of these “ecosystem engineers”, posing a detrimental effect throughout the marine ecosystem.
+
+To address the issue, we created the SafeShip initiative, a data-driven platform that not only monitors whale habitats, but also evaluates the risk of routes in real time and gives instantaneous rerouting suggestions. This initiative aims to save lives and protect vital marine biodiversity, while maintaining the efficiency of global shipping operations.
+
+## Overview
+SafeShip is a full-stack maritime safety platform designed to prevent collisions between commercial vessels and large whale species. It integrates real-time AIS vessel tracking, machine learning risk prediction, and LLM-generated safety briefings to provide actionable insights for bridge crews.
 
 ## 🚀 Quick Setup (Windows)
 
