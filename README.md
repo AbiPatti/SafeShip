@@ -1,4 +1,4 @@
-# 🐳 SafeShip - AI-Powered Marine Safety Platform
+# SafeShip - AI-Powered Marine Safety Platform
 
 >**Note**: This project was built in 24 hours for the Sheridan Datathon in collaboration with [@YeehawMcfly](https://github.com/YeehawMcfly) and [@Abhiroop-Tech](https://github.com/Abhiroop-Tech).
 
@@ -9,7 +9,66 @@ To address the issue, we created the SafeShip initiative, a data-driven platform
 ## Overview
 SafeShip is a full-stack maritime safety platform designed to prevent collisions between commercial vessels and large whale species. It integrates real-time AIS vessel tracking, machine learning risk prediction, and LLM-generated safety briefings to provide actionable insights for bridge crews.
 
-## 🚀 Quick Setup (Windows)
+## Key Features
+
+### 1. Real-Time Ship Tracking
+- Search vessels by name (e.g., "EVER GIVEN")
+- View ships near your location or in bounding box
+- Query ships in specific ports
+- Live AIS position updates
+
+### 2. Whale Risk Detection (ML)
+- Predicts whale presence risk: **HIGH / MEDIUM / LOW**
+- Trained on OBIS-SEAMAP whale sighting dataset
+- Features: latitude, longitude, month (seasonal patterns)
+- ~85-90% accuracy
+
+### 3. Gemini AI Safety Briefings (Multimodal)
+- **Visual Analysis**: AI sees the map screenshot (html2canvas)
+- **Context-Aware**: Integrates vessel data, track history, whale risk
+- **Natural Language**: Bridge crew briefings with actionable recommendations
+- **Markdown Rendering**: Beautiful formatted output
+
+
+## Architecture
+
+The system utilizes a microservices architecture with a React frontend, Node.js backend gateway, and a Python/Flask machine learning service.
+
+```
+┌─────────────────────────────────────────────┐
+│  Frontend (React + Leaflet + Gemini UI)   │  Port 5173
+│  - Interactive ship map                    │
+│  - Real-time vessel tracking               │
+│  - AI safety briefings                     │
+└──────────────────┬──────────────────────────┘
+                   │
+         ┌─────────┴─────────┐
+         ▼                   ▼
+┌──────────────────┐  ┌──────────────────┐
+│  Backend API     │  │  ML Service      │
+│  (Node/TS)       │  │  (Python/Flask)  │
+│  Port 5001       │  │  Port 5002       │
+│                  │  │                  │
+│ • Ship tracking  │  │ • Whale risk     │
+│ • Gemini AI      │  │   prediction     │
+│ • Route calc     │  │ • GBM classifier │
+└──────────────────┘  └──────────────────┘
+         │                   │
+         ▼                   ▼
+┌──────────────────┐  ┌──────────────────┐
+│ MyShipTracking   │  │ OBIS Whale Data  │
+│ AIS API          │  │ (trained model)  │
+└──────────────────┘  └──────────────────┘
+```
+
+## Tech Stack
+
+- **Frontend:** React, TypeScript, Leaflet, Vite, html2canvas, react-icons, marked
+- **Backend:** Node.js, Express, TypeScript, Axios, @google/generative-ai
+- **ML:** Python, Flask, scikit-learn, pandas, numpy
+- **Data:** MyShipTracking API (AIS), OBIS-SEAMAP (whale sightings)
+
+## Quick Setup (Windows)
 
 ### Prerequisites
 - Node.js 18+ 
@@ -53,9 +112,9 @@ Run the startup script (uses fixed Python path for ML service):
 ```
 
 This will launch:
-- 🐍 **ML Service** on `http://localhost:5002` (Python Flask)
-- 🚢 **Backend API** on `http://localhost:5001` (Node.js/Express)
-- 🌐 **Frontend** on `http://localhost:5173` (React + Vite)
+- **ML Service** on `http://localhost:5002` (Python Flask)
+- **Backend API** on `http://localhost:5001` (Node.js/Express)
+- **Frontend** on `http://localhost:5173` (React + Vite)
 
 ### Step 4: Open the App
 
@@ -63,60 +122,9 @@ Navigate to **http://localhost:5173** in your browser.
 
 ---
 
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│  Frontend (React + Leaflet + Gemini UI)   │  Port 5173
-│  - Interactive ship map                    │
-│  - Real-time vessel tracking               │
-│  - AI safety briefings                     │
-└──────────────────┬──────────────────────────┘
-                   │
-         ┌─────────┴─────────┐
-         ▼                   ▼
-┌──────────────────┐  ┌──────────────────┐
-│  Backend API     │  │  ML Service      │
-│  (Node/TS)       │  │  (Python/Flask)  │
-│  Port 5001       │  │  Port 5002       │
-│                  │  │                  │
-│ • Ship tracking  │  │ • Whale risk     │
-│ • Gemini AI      │  │   prediction     │
-│ • Route calc     │  │ • GBM classifier │
-└──────────────────┘  └──────────────────┘
-         │                   │
-         ▼                   ▼
-┌──────────────────┐  ┌──────────────────┐
-│ MyShipTracking   │  │ OBIS Whale Data  │
-│ AIS API          │  │ (trained model)  │
-└──────────────────┘  └──────────────────┘
-```
-
 ---
 
-## 🎯 Key Features
-
-### 1. Real-Time Ship Tracking
-- Search vessels by name (e.g., "EVER GIVEN")
-- View ships near your location or in bounding box
-- Query ships in specific ports
-- Live AIS position updates
-
-### 2. Whale Risk Detection (ML)
-- Predicts whale presence risk: **HIGH / MEDIUM / LOW**
-- Trained on OBIS-SEAMAP whale sighting dataset
-- Features: latitude, longitude, month (seasonal patterns)
-- ~85-90% accuracy
-
-### 3. Gemini AI Safety Briefings (Multimodal)
-- **Visual Analysis**: AI sees the map screenshot (html2canvas)
-- **Context-Aware**: Integrates vessel data, track history, whale risk
-- **Natural Language**: Bridge crew briefings with actionable recommendations
-- **Markdown Rendering**: Beautiful formatted output
-
----
-
-## 📡 API Endpoints
+## API Endpoints
 
 ### Backend (Port 5001)
 
@@ -149,7 +157,7 @@ Navigate to **http://localhost:5173** in your browser.
 
 ---
 
-## 🧠 Machine Learning Model
+## Machine Learning Model
 
 **Algorithm:** Gradient Boosting Classifier  
 **Features:** Latitude, Longitude, Month  
@@ -167,7 +175,7 @@ Navigate to **http://localhost:5173** in your browser.
 
 ---
 
-## 🔐 Environment Variables
+## Environment Variables
 
 ### Backend (`backend/.env`)
 ```env
@@ -184,7 +192,7 @@ No configuration needed (port 5002 hardcoded).
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 /
@@ -220,7 +228,7 @@ No configuration needed (port 5002 hardcoded).
 
 ---
 
-## 🛠️ Development
+## Development
 
 ### Retrain ML Model
 ```powershell
@@ -248,26 +256,6 @@ cd frontend
 npm run dev
 ```
 
----
-
-## 🎨 Tech Stack
-
-- **Frontend:** React, TypeScript, Leaflet, Vite, html2canvas, react-icons, marked
-- **Backend:** Node.js, Express, TypeScript, Axios, @google/generative-ai
-- **ML:** Python, Flask, scikit-learn, pandas, numpy
-- **Data:** MyShipTracking API (AIS), OBIS-SEAMAP (whale sightings)
-
----
-
-## 🏆 Hackathon Tracks
-
-This project targets:
-- ✅ **Best Use of Gemini API** - Multimodal safety briefings with map visual analysis
-- ✅ **Best UI/UX** - Professional maritime dashboard with real-time updates
-- ✅ **Most Creative Use of AI** - Combining ML whale detection + Gemini contextual insights
-
----
-
-## 📝 License
+## License
 
 MIT License - Hackathon project for marine conservation.
