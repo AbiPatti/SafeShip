@@ -31,6 +31,8 @@ SafeShip is a full-stack maritime safety platform designed to prevent collisions
 
 ## Demo
 
+> To watch ShipSafe in action, simply click on this video:
+
 [![Watch the Demo](https://img.youtube.com/vi/tfVUQBN6bpY/maxresdefault.jpg)](https://www.youtube.com/watch?v=tfVUQBN6bpY)
 
 ## Architecture
